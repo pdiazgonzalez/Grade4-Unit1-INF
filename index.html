@@ -38,6 +38,12 @@
       border-radius: 50%; width: 28px; height: 28px; margin-right: 8px;
     }
     
+    .counter {
+  font-size: 14px;
+  color: #555;
+  margin-top: 6px;
+}
+    
 .q2a-select {
   font-size: 24px;
   font-family: Verdana, sans-serif;
@@ -115,7 +121,7 @@ hr.rounded { border: 0; height: 10px; background: linear-gradient(90deg, #bbb, #
   <h2>Teenager wants to run for local office, but some say she's too young</h2>
   <p style="text-align: center"><strong>By The Washington Post, adapted by Newsela staff on 03.15.17</strong></p>
 
-  <iframe src="https://drive.google.com/file/d/1d3pubPnTLVr9wYqHgZJekYRUF2rgDQwy/preview" width="480" height="480" allow="autoplay" class="center"></iframe>
+  <div class="gd-image"><iframe src="https://drive.google.com/file/d/1d3pubPnTLVr9wYqHgZJekYRUF2rgDQwy/preview" class="center" allow="autoplay"></iframe></div>
 
   <p><span class="number-circle">1</span> In March, the city of Stonecrest, Georgia is holding an election. When it's all over, Mary-Pat Hector could be one of the city's
 leaders. She is only 19 years old.</p>
@@ -133,8 +139,8 @@ meet with people in her area. She wants to prove that a 19-year-old woman can do
 Hector's election team is made up mostly of young people. She hopes to knock on all 10,000 doors in her area. She is telling voters that she hopes to create jobs. She wants to keep young people in the community.</p>
   <p><span class="number-circle">7</span> The Stonecrest election takes place March 21. Hector said that the response has been very good. Still, some voters think she's too young to run. One man called her election hopes "cute," she said. Another questioned her ability to balance a government job with her schoolwork. Hector hopes to show other young people that they can have a voice in the government. She says the best way to see change happen is to create it yourself. For Hector, that means working in the government so she hopes to see this goal become reality.</p>
   
-  <div style="background-color: Gainsboro;">
-  <form id="quizForm" autocomplete="off" novalidate>
+  <div style="background-color: Gainsboro; padding: 1px 12px 16px; border-radius: 10px;">
+  <form id="quizForm">
     
   <h2>Questions</h2>
 
@@ -153,6 +159,10 @@ Hector's election team is made up mostly of young people. She hopes to knock on 
       <p><strong>2. What traits do you think the author would use to describe Hector? Explain your thinking using complete sentences and evidence from the text. (RI.4.1)</strong></p>
       <textarea style="font-size: 36px; color: #333333; font-family: 'Tahoma', sans-serif; width: 100%;" id="openq2" rows="4" cols="50"></textarea>
     </div>
+    <!-- live character/word counter -->
+   <div id="openq2Counter" class="counter" aria-live="polite" aria-atomic="true">
+  Words: 0</div>
+</div>
 
     <!-- 3a -->
     <div class="question" data-answer="c" data-type="radio" data-name="q3a">
@@ -244,6 +254,7 @@ Hector's election team is made up mostly of young people. She hopes to knock on 
     </label>
 
     <hr class="rounded">
+
     <div style="text-align: center;">
       <button type="submit" id="submitBtn">Submit</button>
     </div>
@@ -251,20 +262,136 @@ Hector's election team is made up mostly of young people. She hopes to knock on 
 
   <div id="result" style="margin-top:20px; font-weight:bold;"></div>
 </div>
-
+<details style="max-width: 700px; margin: 12px auto; text-align: center;">
+  <summary style="cursor:pointer; font-weight:700;">Teacher reset (passcode required)</summary>
+  <div style="margin-top:10px">
+    <label style="display:block; margin-bottom:8px;">
+      Passcode:
+      <input type="password" id="resetCode" style="width: 260px; height: 40px; padding: 6px; font-size: 18px;">
+    </label>
+    <button type="button" id="resetBtn" style="height:48px; padding: 6px 16px; font-weight:700;">
+      Reset submission lock for this student
+    </button>
+    <p id="resetMsg" style="margin-top:8px; font-size: 14px; color:#555;"></p>
+  </div>
+</details>
 <script>
 (() => {
+    // Assignment ID chosen in relation to assessment title.
+  const ASSIGNMENT_ID = "unit1-inf-2025-fall"; // <-- unique to this quiz
+  const RESET_CODE = "admin";              // <-- top secret passcode :)
+
+  // ===== Helpers for the lock key =====
+  const norm = (s) => (s || "").trim().toLowerCase().replace(/\s+/g, " ");
+  const makeKey = (studentName, teacherName) =>
+    `lock:${ASSIGNMENT_ID}:${norm(studentName)}:${norm(teacherName)}`;
+
+  const hasLock = (key) => localStorage.getItem(key) !== null;
+  const setLock = (key) => localStorage.setItem(key, JSON.stringify({ ts: Date.now() }));
+  const clearLock = (key) => localStorage.removeItem(key);
+
+  // ===== DOM refs =====
   const form = document.getElementById("quizForm");
   const submitBtn = document.getElementById("submitBtn");
+  const studentNameEl = document.getElementById("studentName");
+  const teacherNameEl = document.getElementById("teacherName");
+  const resetBtn = document.getElementById("resetBtn");
+  const resetCodeEl = document.getElementById("resetCode");
+  const resetMsg = document.getElementById("resetMsg");
+// --- Q2 live counter ---
+const openQ2El = document.getElementById("openq2");
+const openQ2Counter = document.getElementById("openq2Counter");
+
+function countWords(text) {
+  const t = text.trim();
+  if (!t) return 0;
+  // Split on any whitespace; filter out empty parts
+  return t.split(/\s+/).filter(Boolean).length;
+}
+function updateOpenQ2Counter() {
+  if (!openQ2El || !openQ2Counter) return;
+  const val = openQ2El.value || "";
+  const words = countWords(val);
+  const chars = val.length; // includes spaces/newlines
+  const charsNoSpaces = val.replace(/\s/g, "").length;
+  openQ2Counter.textContent = `Words: ${words}`;
+}
+
+// Initialize + live updates
+if (openQ2El) {
+  updateOpenQ2Counter();
+  openQ2El.addEventListener("input", updateOpenQ2Counter);
+}
+
+  
+  
   let isSubmitting = false;
 
+  // ===== UI sync for lock status =====
+  function updateSubmitLockUI() {
+    const nm = studentNameEl.value;
+    const tc = teacherNameEl.value;
+    const key = makeKey(nm, tc);
+
+    // Only enforce when both name & teacher are present
+    if (norm(nm) && norm(tc) && hasLock(key)) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Submitted ✔";
+      submitBtn.setAttribute("data-locked", "1");
+    } else if (!isSubmitting) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Submit";
+      submitBtn.removeAttribute("data-locked");
+    }
+  }
+
+  // Run on load and whenever name/teacher changes
+  ["input", "change"].forEach(evt => {
+    studentNameEl.addEventListener(evt, updateSubmitLockUI);
+    teacherNameEl.addEventListener(evt, updateSubmitLockUI);
+  });
+  document.addEventListener("DOMContentLoaded", updateSubmitLockUI);
+  updateSubmitLockUI();
+
+  // ===== Teacher Reset =====
+  resetBtn.addEventListener("click", () => {
+    resetMsg.textContent = "";
+    const code = resetCodeEl.value || "";
+
+    if (code !== RESET_CODE) {
+      resetMsg.textContent = "Incorrect passcode.";
+      resetMsg.style.color = "#b00020";
+      return;
+    }
+
+    const nm = studentNameEl.value;
+    const tc = teacherNameEl.value;
+
+    if (!norm(nm) || !norm(tc)) {
+      resetMsg.textContent = "Enter the student's name and select the teacher first.";
+      resetMsg.style.color = "#b00020";
+      return;
+    }
+
+    const key = makeKey(nm, tc);
+    if (hasLock(key)) {
+      clearLock(key);
+      isSubmitting = false; // ensure UI can re-enable
+      updateSubmitLockUI();
+      resetMsg.textContent = "Submission lock cleared for this student. They can submit again.";
+      resetMsg.style.color = "#2e7d32";
+    } else {
+      resetMsg.textContent = "No existing lock found for this student.";
+      resetMsg.style.color = "#555";
+    }
+  });
+
+  // ===== Your existing submission handler, with lock checks wired in =====
   form.addEventListener("submit", async function(e) {
     e.preventDefault();
-    if (isSubmitting) return; // prevent double-clicks
+    if (isSubmitting) return; // double-click guard
 
     // Validate name & teacher first
-    const studentNameEl = document.getElementById("studentName");
-    const teacherNameEl = document.getElementById("teacherName");
     studentNameEl.classList.remove("unanswered");
     teacherNameEl.classList.remove("unanswered");
 
@@ -280,6 +407,14 @@ Hector's election team is made up mostly of young people. She hopes to knock on 
       teacherNameEl.classList.add("unanswered");
       teacherNameEl.scrollIntoView({ behavior: "smooth", block: "center" });
       teacherNameEl.focus();
+      return;
+    }
+
+    // Check local lock BEFORE doing anything else
+    const lockKey = makeKey(studentNameEl.value, teacherNameEl.value);
+    if (hasLock(lockKey)) {
+      alert("This quiz has already been submitted for this student and teacher.\nAsk your teacher to reset if needed.");
+      updateSubmitLockUI();
       return;
     }
 
@@ -315,7 +450,7 @@ Hector's election team is made up mostly of young people. She hopes to knock on 
           q.classList.add("unanswered");
           if (!firstUnanswered) firstUnanswered = q;
         }
-      } else {
+      } else { // open-ended
         const textarea = q.querySelector("textarea");
         if (textarea && textarea.value.trim() === "") {
           allAnswered = false;
@@ -366,7 +501,7 @@ Hector's election team is made up mostly of young people. She hopes to knock on 
         if (textarea) {
           studentAnswer = textarea.value.trim();
           openResponses.push({ question: q.querySelector("p").innerText, answer: studentAnswer });
-          q.classList.add("correct"); // recorded
+          q.classList.add("correct"); // recorded, not auto-graded
         }
       }
 
@@ -386,14 +521,15 @@ Hector's election team is made up mostly of young people. She hopes to knock on 
       });
       openHTML += "</ul>";
     }
-
     document.getElementById("result").innerHTML = `
-      <h3>Student Report Card</h3>
-      <p><strong>Student:</strong> ${studentName}</p>
-      <p><strong>Teacher:</strong> ${teacherName}</p>
-      <p><strong>Score:</strong> ${score} out of ${total} correct (${percent}%).</p>
-      <p><em>Note:</em> Only multiple-choice and checkbox questions are auto-graded.</p>
-      ${openHTML}
+      <div class="result-card">
+        <h3>Student Report Card</h3>
+        <p><strong>Student:</strong> ${studentName}</p>
+        <p><strong>Teacher:</strong> ${teacherName}</p>
+        <p><strong>Score:</strong> ${score} out of ${total} correct (${percent}%).</p>
+        <p><em>Note:</em> Only multiple-choice and checkbox questions are auto-graded.</p>
+        ${openHTML}
+      </div>
     `;
 
     // Prepare payload for Google Sheets
@@ -409,14 +545,18 @@ Hector's election team is made up mostly of young people. She hopes to knock on 
     submitBtn.textContent = "Submitting...";
 
     try {
-      const res = await fetch("https://script.google.com/macros/s/AKfycbxcfc5sfjA7Jk7yRW5X04K2jHArEs9bwtMiCBxb7SYszaTbvVfDVxfaXsrRfpt4BQqA/exec", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: formBody
-      });
-      const data = await res.text();
-      console.log("Server response:", data);
-      submitBtn.textContent = "Submitted ✓"; // keep disabled to prevent resubmission
+      const res = await fetch(
+        "https://script.google.com/macros/s/AKfycbxcfc5sfjA7Jk7yRW5X04K2jHArEs9bwtMiCBxb7SYszaTbvVfDVxfaXsrRfpt4BQqA/exec",
+        { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: formBody }
+      );
+
+      // If you return JSON, you can do: const data = await res.json();
+      const raw = await res.text();
+      console.log("Server response:", raw);
+
+      // On success, burn the lock
+      setLock(lockKey);
+      submitBtn.textContent = "Submitted ✓"; // keep disabled
       alert("Quiz submitted successfully!");
     } catch (err) {
       console.error("Error:", err);
@@ -424,10 +564,14 @@ Hector's election team is made up mostly of young people. She hopes to knock on 
       isSubmitting = false;
       submitBtn.disabled = false;
       submitBtn.textContent = originalBtnText;
+    } finally {
+      // Ensure UI reflects lock state (success path will show locked, error path will re-enable)
+      updateSubmitLockUI();
     }
   });
 })();
 </script>
+
 
 </body>
 </html>
